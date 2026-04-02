@@ -1,7 +1,5 @@
 import { Header } from "@/components/header";
-import { AgentProfileCard } from "@/components/agent-profile-card";
-import { FreeTierCard } from "@/components/free-tier-card";
-import { PremiumTierCard } from "@/components/premium-tier-card";
+import { TemplateSelector } from "@/components/template-selector";
 import { getReadmeConfig } from "@/lib/readme-config";
 
 const markdownToHtml = (markdown: string) => {
@@ -18,6 +16,43 @@ const markdownToHtml = (markdown: string) => {
 
   return withBold.replace(/\n/g, "<br />");
 };
+
+const TEMPLATES = [
+  {
+    name: "语料贡献者模板",
+    file_name: "aidimsum_dataset_contributor.png",
+    vars: [
+      {
+        var_name: "name",
+        default_value: "cool guy",
+        type: "text",
+        font_size: 48,
+        position: { x: 200, y: 190 },
+      },
+      {
+        var_name: "dataset_name",
+        default_value: "「广府童谣」语料集，",
+        type: "text",
+        font_size: 12,
+        position: { x: 377, y: 264 },
+      },
+      {
+        var_name: "cert_date",
+        default_value: "2026-04-02",
+        type: "text",
+        font_size: 12,
+        position: { x: 350, y: 375 },
+      },
+      {
+        var_name: "qr_code",
+        default_value: "",
+        type: "qr_code",
+        font_size: 80,
+        position: { x: 150, y: 320 },
+      },
+    ],
+  },
+];
 
 export default function Home() {
   const config = getReadmeConfig();
@@ -36,32 +71,12 @@ export default function Home() {
               className="text-xl text-muted-foreground"
               dangerouslySetInnerHTML={{ __html: markdownToHtml(config.descriptionMarkdown) }}
             />
-            <p
-              className="text-xl text-muted-foreground"
-              dangerouslySetInnerHTML={{ __html: markdownToHtml("-- Open the [👉 AI Agent Market 👈](https://agent-market.leeduckgo.com/agents) to see other AGENTS 🤖.") }}
-            />
           </div>
         </div>
         <br></br>
         <hr></hr>
         <br></br>
-        {/* Agent Profile Card */}
-        <AgentProfileCard
-          name={config.fullName}
-          description={config.descriptionMarkdown}
-          address={config.agentAddress}
-          tags={config.agentTags}
-        />
-        <br></br>
-        {/* Free Tier: ChatBot Access */}
-        <FreeTierCard
-          description={config.freeTierDescription}
-          link={config.freeTierLink}
-          chatbotName={config.homepageName}
-        />
-        <br></br>
-        {/* Premium Tier */}
-        <PremiumTierCard description={config.premiumTierDescription} />
+        <TemplateSelector templates={TEMPLATES} />
       </main>
 
       <footer className="border-t border-border mt-auto">

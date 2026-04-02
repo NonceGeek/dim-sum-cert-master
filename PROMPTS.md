@@ -34,7 +34,7 @@ Please generate the following basic information for the AI Agent:
 
 1. **Agent Name**: 
    - Provide a creative and descriptive name (can be bilingual: English/Chinese)
-   - Example: "轻量程序生成大师LeanCoder" or "Hackathon Project Analyzer"
+   - Example: "轻量程序生成大师DimSum Cert Master" or "Hackathon Project Analyzer"
 
 2. **Agent Description**: 
    - Write a clear description of what the agent does (in English)
@@ -58,7 +58,7 @@ Please generate the following basic information for the AI Agent:
 
 6. **Agent Free Tier Description**: 
    - Describe what users can access for free (the chatbot functionality)
-   - Example: "Chat with the LeanCoder for free. Generate the micro program automatically!"
+   - Example: "Chat with the DimSum Cert Master for free. Generate the micro program automatically!"
 
 7. **Agent Premium Tier Description**: 
    - Describe what users get when they pay (the premium content/coupon functionality)

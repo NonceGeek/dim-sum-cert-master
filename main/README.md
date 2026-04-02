@@ -10,11 +10,11 @@ A configurable Next.js scaffold for building AI Agent homepages with a built-in 
 
 * **homepageName**
   * **description:** Display name shown in the header, footer, and page title
-  * **value:** `"LeanCoder"`
+  * **value:** `"DimSum Cert Master"`
 
 * **fullName**
   * **description:** Full agent name shown on the profile card
-  * **value:** `"轻量程序生成大师LeanCoder"`
+  * **value:** `"轻量程序生成大师DimSum Cert Master"`
 
 * **twitterUrl**
   * **description:** Twitter/X profile URL shown in the footer
@@ -26,7 +26,7 @@ A configurable Next.js scaffold for building AI Agent homepages with a built-in 
 
 * **descriptionMarkdown**
   * **description:** Agent description in markdown (supports bold, links, newlines)
-  * **value:** `"Generate a micro pragram as a real human programmer, \n像人类工程师一样帮你生成轻量级的程序。"`
+  * **value:** `"基于模块快速生成需要的证书。"`
 
 * **agentAddress**
   * **description:** On-chain address displayed on the profile card.
@@ -34,7 +34,7 @@ A configurable Next.js scaffold for building AI Agent homepages with a built-in 
 
 * **freeTierDescription**
   * **description:** Description text for the free tier card
-  * **value:** `"Chat with the LeanCoder for free. Generate the micro program automatically!\n与LeanCoder免费聊天，自动生成微程序！"`
+  * **value:** `"Chat with the DimSum Cert Master for free. Generate the micro program automatically!\n与DimSum Cert Master免费聊天，自动生成微程序！"`
 
 * **freeTierLink**
   * **description:** Link target for the free tier button
@@ -50,11 +50,11 @@ A configurable Next.js scaffold for building AI Agent homepages with a built-in 
 
 * **chatbotDescription**
   * **description:** Subtitle text on the `/chat` page
-  * **value:** `"Talk to LeanCoder if you have any questions about programming."`
+  * **value:** `"Talk to DimSum Cert Master if you have any questions about programming."`
 
 * **chatbotIntroMessage**
   * **description:** Initial greeting message in the chat window
-  * **value:** `"你好！我是 LeanCoder轻量级程序编写大师~ 你有什么问题都可以问我哦~"`
+  * **value:** `"你好！我是 DimSum Cert Master轻量级程序编写大师~ 你有什么问题都可以问我哦~"`
 
 * **chatApiUrl**
   * **description:** Backend API endpoint for the chat
