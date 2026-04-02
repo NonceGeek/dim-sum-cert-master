@@ -168,7 +168,7 @@ app.use(oakCors());
 app.use(router.routes());
 
 // Start server
-const port = Number(Deno.env.get("SERVER_PORT")) || 4403;
+const port = Number(Deno.env.get("PORT")) || Number(Deno.env.get("SERVER_PORT")) || 8000;
 
 console.info(`
   🚀 CORS-enabled web server listening on port ${port}
