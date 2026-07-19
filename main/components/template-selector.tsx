@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import QRCode from "qrcode";
 import { Input } from "@/components/ui/input";
 
 type TemplateSelectorProps = {
@@ -25,6 +26,12 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
     height: number;
   } | null>(null);
 
+  const getTemplateDefaultOwner = useCallback(
+    (t: TemplateSelectorProps["templates"][number] | undefined) =>
+      t?.vars.find((v) => v.var_name === "name")?.default_value ?? "",
+    [],
+  );
+
   const [selectedFileName, setSelectedFileName] = useState(
     templates[0]?.file_name ?? "",
   );
@@ -34,7 +41,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
   >({});
   const [varFontSizes, setVarFontSizes] = useState<Record<string, number>>({});
   const [qrCodeDataUri, setQrCodeDataUri] = useState<string>("");
-  const [qrCodeSize, setQrCodeSize] = useState(120);
+  const [qrCodeSize, setQrCodeSize] = useState(80);
 
   if (templates.length === 0) {
     return (
@@ -46,6 +53,14 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
 
   const selectedTemplate =
     templates.find((t) => t.file_name === selectedFileName) ?? templates[0];
+
+  const templateLayoutStorageKey = useMemo(
+    () => `dim-sum-template-layout:${selectedTemplate?.file_name ?? ""}`,
+    [selectedTemplate?.file_name],
+  );
+  const layoutHydratedRef = useRef<{ key: string; hydrated: boolean } | null>(
+    null,
+  );
 
   const defaultVarValues = useMemo(() => {
     const entries = (selectedTemplate?.vars ?? []).map((v) => [
@@ -78,27 +93,225 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
   }, [defaultVarValues]);
 
   useEffect(() => {
-    setVarPositions(defaultVarPositions);
-  }, [defaultVarPositions]);
+    const key = templateLayoutStorageKey;
+    layoutHydratedRef.current = { key, hydrated: false };
+
+    let next = defaultVarPositions;
+    try {
+      const saved = sessionStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved) as {
+          positions?: Record<string, { x: number; y: number }>;
+          fontSizes?: Record<string, number>;
+        };
+        if (parsed.positions && typeof parsed.positions === "object") {
+          next = { ...defaultVarPositions, ...parsed.positions };
+        }
+      }
+    } catch {}
+
+    setVarPositions(next);
+    if (layoutHydratedRef.current?.key === key) {
+      layoutHydratedRef.current.hydrated = true;
+    }
+  }, [defaultVarPositions, templateLayoutStorageKey]);
 
   useEffect(() => {
-    setVarFontSizes(defaultVarFontSizes);
-  }, [defaultVarFontSizes]);
+    let next = defaultVarFontSizes;
+    try {
+      const saved = sessionStorage.getItem(templateLayoutStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as {
+          positions?: Record<string, { x: number; y: number }>;
+          fontSizes?: Record<string, number>;
+        };
+        if (parsed.fontSizes && typeof parsed.fontSizes === "object") {
+          next = { ...defaultVarFontSizes, ...parsed.fontSizes };
+        }
+      }
+    } catch {}
 
-  const generateCertId = () => {
-    const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setVarFontSizes(next);
+  }, [defaultVarFontSizes, templateLayoutStorageKey]);
 
-    const candidateKeys = ["cert_uuid", "cert_id", "cert_code", "cert_uid"];
-    const existingKey =
-      selectedTemplate?.vars.find((v) => candidateKeys.includes(v.var_name))
-        ?.var_name ?? "cert_uuid";
+  useEffect(() => {
+    const key = templateLayoutStorageKey;
+    if (!key) return;
+    if (layoutHydratedRef.current?.key !== key) return;
+    if (!layoutHydratedRef.current?.hydrated) return;
 
-    setVarValues((prev) => ({ ...prev, [existingKey]: id }));
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(id).catch(() => {});
+    try {
+      const payload = JSON.stringify({
+        positions: varPositions,
+        fontSizes: varFontSizes,
+      });
+      sessionStorage.setItem(key, payload);
+    } catch {}
+  }, [templateLayoutStorageKey, varPositions, varFontSizes]);
+
+  const [certModalOpen, setCertModalOpen] = useState(false);
+  const CERT_PASSWD_STORAGE_KEY = "dim-sum-cert-passwd";
+  const QR_COLOR_STORAGE_KEY = "dim-sum-qr-color";
+  const qrSettingsStorageKey = useMemo(
+    () => `dim-sum-qr-settings:${selectedTemplate?.file_name ?? ""}`,
+    [selectedTemplate?.file_name],
+  );
+  const [certPasswd, setCertPasswd] = useState("");
+  const [certOwner, setCertOwner] = useState(() =>
+    getTemplateDefaultOwner(templates[0]),
+  );
+  const [certName, setCertName] = useState(() => templates[0]?.name ?? "");
+  const [certLoading, setCertLoading] = useState(false);
+  const [certVerifyUrl, setCertVerifyUrl] = useState<string | null>(null);
+  const [certError, setCertError] = useState<string | null>(null);
+  const [qrColor, setQrColor] = useState("#000000");
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const drawQrCode = useCallback(
+    async (url: string, color: string) => {
+      const canvas = qrCanvasRef.current;
+      if (!canvas) return;
+      await QRCode.toCanvas(canvas, url, {
+        width: 256,
+        margin: 1,
+        color: { dark: color, light: "#00000000" },
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (certVerifyUrl) drawQrCode(certVerifyUrl, qrColor);
+  }, [certVerifyUrl, qrColor, drawQrCode]);
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(CERT_PASSWD_STORAGE_KEY);
+      if (typeof saved === "string") setCertPasswd(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CERT_PASSWD_STORAGE_KEY, certPasswd);
+    } catch {}
+  }, [certPasswd]);
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(QR_COLOR_STORAGE_KEY);
+      if (typeof saved === "string" && saved) setQrColor(saved);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(QR_COLOR_STORAGE_KEY, qrColor);
+    } catch {}
+  }, [qrColor]);
+
+  useEffect(() => {
+    setCertOwner(getTemplateDefaultOwner(selectedTemplate));
+    setCertName(selectedTemplate?.name ?? "");
+  }, [selectedTemplate, getTemplateDefaultOwner]);
+
+  useEffect(() => {
+    if (!selectedTemplate?.file_name) return;
+
+    try {
+      const saved = sessionStorage.getItem(qrSettingsStorageKey);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as {
+        size?: number;
+        position?: { x: number; y: number };
+      };
+
+      if (typeof parsed.size === "number" && Number.isFinite(parsed.size) && parsed.size > 0) {
+        setQrCodeSize(parsed.size);
+      }
+      if (
+        parsed.position &&
+        typeof parsed.position.x === "number" &&
+        typeof parsed.position.y === "number" &&
+        Number.isFinite(parsed.position.x) &&
+        Number.isFinite(parsed.position.y)
+      ) {
+        setVarPositions((prev) => ({ ...prev, qr_code: parsed.position! }));
+      }
+    } catch {}
+  }, [selectedTemplate?.file_name, qrSettingsStorageKey]);
+
+  useEffect(() => {
+    if (!selectedTemplate?.file_name) return;
+    try {
+      const payload = JSON.stringify({
+        size: qrCodeSize,
+        position: varPositions["qr_code"],
+      });
+      sessionStorage.setItem(qrSettingsStorageKey, payload);
+    } catch {}
+  }, [selectedTemplate?.file_name, qrSettingsStorageKey, qrCodeSize, varPositions]);
+
+  const downloadQrPng = () => {
+    const canvas = qrCanvasRef.current;
+    if (!canvas) return;
+    const url = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    const sanitizeFilePart = (s: string) =>
+      s
+        .trim()
+        .replace(/[\/\\?%*:|"<>]/g, "_")
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_");
+
+    const owner = sanitizeFilePart(varValues["name"] ?? certOwner ?? "");
+    a.download = `${owner || "certificate"}_certqrcode.png`;
+    a.click();
+  };
+
+  const openCertModal = () => {
+    const nameFromVars = (varValues["name"] ?? "").trim();
+    setCertOwner(nameFromVars || getTemplateDefaultOwner(selectedTemplate));
+    setCertName(selectedTemplate?.name ?? "");
+    setCertVerifyUrl(null);
+    setCertError(null);
+    setCertModalOpen(true);
+  };
+
+  const submitNewCert = async () => {
+    setCertError(null);
+    setCertLoading(true);
+    try {
+      const resp = await fetch(
+        "https://api.cert.app.aidimsum.com/api/new_cert",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            passwd: certPasswd,
+            owner: certOwner,
+            cert_name: certName,
+          }),
+        },
+      );
+      const data = await resp.json();
+      if (!resp.ok) {
+        setCertError(data.error ?? `Error ${resp.status}`);
+        return;
+      }
+      const certId = data.data?.cert_id ?? data.data?.id;
+      if (!certId) {
+        setCertError("No cert_id returned");
+        return;
+      }
+      const verifyUrl = `https://api.cert.app.aidimsum.com/api/verify_cert?cert_id=${certId}`;
+      setCertVerifyUrl(verifyUrl);
+      navigator.clipboard?.writeText(verifyUrl).catch(() => {});
+    } catch (err) {
+      setCertError(String(err));
+    } finally {
+      setCertLoading(false);
     }
   };
 
@@ -168,7 +381,22 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
     const url = URL.createObjectURL(htmlBlob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${selectedTemplate.name}.html`;
+    const sanitizeFilePart = (s: string) =>
+      s
+        .trim()
+        .replace(/[\/\\?%*:|"<>]/g, "_")
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_");
+
+    const owner = sanitizeFilePart(varValues["name"] ?? certOwner ?? "");
+    const rawDatasetName = String(varValues["dataset_name"] ?? "");
+    const datasetName = sanitizeFilePart(
+      rawDatasetName.replace(/[，,&。\.]/g, ""),
+    );
+    const certDisplayName = sanitizeFilePart(certName || selectedTemplate.name);
+
+    const baseName = [owner, datasetName, certDisplayName].filter(Boolean).join("_");
+    a.download = `${baseName || sanitizeFilePart(selectedTemplate.name) || "certificate"}.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -436,12 +664,146 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
         </button>
         <button
           type="button"
-          onClick={generateCertId}
+          onClick={openCertModal}
           className="inline-flex h-10 items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
         >
           生成证书唯一码
         </button>
       </div>
+
+      {certModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg">
+            <h2 className="mb-4 text-lg font-semibold text-foreground">
+              生成证书唯一码
+            </h2>
+
+            {!certVerifyUrl ? (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground">
+                    passwd
+                  </label>
+                  <Input
+                    type="password"
+                    value={certPasswd}
+                    onChange={(e) => setCertPasswd(e.target.value)}
+                    placeholder="请输入密码"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground">
+                    owner
+                  </label>
+                  <Input
+                    value={certOwner}
+                    onChange={(e) => setCertOwner(e.target.value)}
+                    placeholder="证书拥有者"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground">
+                    cert_name
+                  </label>
+                  <Input
+                    value={certName}
+                    onChange={(e) => setCertName(e.target.value)}
+                    placeholder="证书名称"
+                  />
+                </div>
+
+                {certError && (
+                  <p className="text-sm text-red-500">{certError}</p>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCertModalOpen(false)}
+                    className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitNewCert}
+                    disabled={certLoading}
+                    className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {certLoading ? "生成中..." : "生成"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-foreground">
+                    证书验证链接
+                  </label>
+                  <Input readOnly value={certVerifyUrl} />
+                  <p className="text-xs text-muted-foreground">
+                    已自动复制到剪贴板
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center">
+                    <canvas
+                      ref={qrCanvasRef}
+                      className="rounded"
+                      style={{ background: "#fff" }}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-foreground whitespace-nowrap">
+                      二维码颜色
+                    </label>
+                    <input
+                      type="color"
+                      value={qrColor}
+                      onChange={(e) => setQrColor(e.target.value)}
+                      className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5"
+                    />
+                    <Input
+                      value={qrColor}
+                      onChange={(e) => setQrColor(e.target.value)}
+                      className="w-28"
+                      maxLength={7}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={downloadQrPng}
+                    className="inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    下载二维码
+                  </button>
+                </div>
+
+                <a
+                  href="https://cli.im/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  或前往 cli.im 生成更多样式 →
+                </a>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCertModalOpen(false)}
+                    className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  >
+                    关闭
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {selectedTemplate?.file_name && (
         <div className="flex justify-center">

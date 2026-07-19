@@ -9,11 +9,6 @@
   },
   "deploy": {
     "org": "leeduckgo",
-    "project": "dim-sum-cert-master",
-    "exclude": [
-      "**/node_modules"
-    ],
-    "include": [],
-    "entrypoint": "main.tsx"
+    "app": "dim-sum-cert-master"
   }
 }

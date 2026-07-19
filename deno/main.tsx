@@ -9,7 +9,7 @@ TODO（NOT DELETE):
 - 将 API 的调用替换为 OpenRouter 的 API
  */
 
-import { oakCors } from "cors";
+import { oakCors } from "https://deno.land/x/cors@v1.2.2/mod.ts";
 import { Application, Router } from "https://deno.land/x/oak@v12.6.1/mod.ts";
 import { CSS, render } from "@deno/gfm";
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
@@ -45,7 +45,10 @@ router
   })
   .get("/docs", async (context) => {
     try {
-      const readmeText = await Deno.readTextFile("./apidoc.md");
+      const readmeText = await Deno.readTextFile(
+        new URL("./apidoc.md", import.meta.url),
+      );
+      context.response.headers.set("Content-Type", "text/markdown; charset=utf-8");
       context.response.body = readmeText;
     } catch (err) {
       console.error("Error reading README:", err);
@@ -55,8 +58,9 @@ router
   })
   .get("/docs/html", async (context) => {
     try {
-      // Read README.md file
-      const readmeText = await Deno.readTextFile("./apidoc.md");
+      const readmeText = await Deno.readTextFile(
+        new URL("./apidoc.md", import.meta.url),
+      );
 
       // Render markdown to HTML with GFM styles
       const body = render(readmeText);
@@ -167,13 +171,26 @@ app.use(oakCors());
 // Middleware: Router
 app.use(router.routes());
 
-// Start server
-const port = Number(Deno.env.get("PORT")) || Number(Deno.env.get("SERVER_PORT")) || 8000;
+const port = Number(Deno.env.get("PORT") || Deno.env.get("SERVER_PORT") || "8000");
 
-console.info(`
-  🚀 CORS-enabled web server listening on port ${port}
-  
-  🌐 Visit: http://localhost:${port}
+const isDeploy =
+  Boolean(Deno.env.get("DENO_DEPLOYMENT_ID")) || Boolean(Deno.env.get("DENO_REGION"));
+
+if (import.meta.main) {
+  if (isDeploy) {
+    console.info("Server started (Deno Deploy)");
+    Deno.serve({
+      handler: async (req) => {
+        const resp = await app.handle(req);
+        return resp ?? new Response("Not Found", { status: 404 });
+      },
+    });
+  } else {
+    console.info(`
+  CORS-enabled web server listening on port ${port}
+
+  Visit: http://localhost:${port}
   `);
-
-await app.listen({ port });
+    await app.listen({ port });
+  }
+}

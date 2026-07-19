@@ -146,3 +146,5 @@ vite.config.ts.timestamp-*
 *.jsonl
 *.npz
 *.joblib
+.vercel
+.env*.local

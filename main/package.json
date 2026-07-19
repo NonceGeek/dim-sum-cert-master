@@ -9,7 +9,10 @@
     "agentAddress": "0x5cf8ed0e6b49da5d87ba69c4e50aa9b78c57bf0dd446f9889c8f8b5e57b0f336",
     "freeTierDescription": "Chat with the DimSum Cert Master for free. Generate the micro program automatically!\n与DimSum Cert Master免费聊天，自动生成微程序！",
     "freeTierLink": "/chat",
-    "agentTags": ["Coder", "Web3er"],
+    "agentTags": [
+      "Coder",
+      "Web3er"
+    ],
     "premiumTierDescription": "For Example, you could submit the prompt like that:\n 例如，你可以像这样提交你的 Prompt：\n「Generate an online letter for my fans and record the number of visits, and deploy it to my domain: https://letter.leeduckgo.com.」\n💡微信扫码进一步沟通：\n![my_qr_code](https://dimsum-utils.oss-cn-guangzhou.aliyuncs.com/leeduckgo/qr_code2.png)\n或者给我发送私信：[https://x.com/0xleeduckgo](https://x.com/0xleeduckgo)",
     "chatbotDescription": "Talk to DimSum Cert Master if you have any questions about programming.",
     "chatbotIntroMessage": "你好！我是 DimSum Cert Master轻量级程序编写大师~ 你有什么问题都可以问我哦~",
@@ -43,6 +46,7 @@
     "next": "15.3.8",
     "next-themes": "^0.4.6",
     "pnpm": "^10.30.1",
+    "qrcode": "^1.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "sonner": "^2.0.7",
@@ -55,6 +59,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

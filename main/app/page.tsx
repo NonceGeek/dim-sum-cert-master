@@ -2,6 +2,17 @@ import { Header } from "@/components/header";
 import { TemplateSelector } from "@/components/template-selector";
 import { getReadmeConfig } from "@/lib/readme-config";
 
+const getTodayInUTC8 = () => {
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
+  const utc8 = new Date(utcMs + 8 * 60 * 60_000);
+
+  const yyyy = utc8.getUTCFullYear();
+  const mm = String(utc8.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(utc8.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 const markdownToHtml = (markdown: string) => {
   const escaped = markdown
     .replace(/&/g, "&amp;")
@@ -19,7 +30,7 @@ const markdownToHtml = (markdown: string) => {
 
 const TEMPLATES = [
   {
-    name: "语料贡献者模板",
+    name: "语料贡献者证书",
     file_name: "aidimsum_dataset_contributor.png",
     vars: [
       {
@@ -38,7 +49,7 @@ const TEMPLATES = [
       },
       {
         var_name: "cert_date",
-        default_value: "2026-04-02",
+        default_value: getTodayInUTC8(),
         type: "text",
         font_size: 12,
         position: { x: 350, y: 375 },
