@@ -80,7 +80,7 @@ const TEMPLATES = [
           "x": 335,
           "y": 160
         },
-        "anchor": "center",
+        "anchor": "center" as const,
         "color": "#000000"
       },
       {

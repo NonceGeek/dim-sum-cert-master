@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+const SELECTED_TEMPLATE_STORAGE_KEY = "dim-sum-selected-template";
 
 type TemplateSelectorProps = {
   templates: {
@@ -61,6 +62,22 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
 
   const selectedTemplate =
     templates.find((t) => t.file_name === selectedFileName) ?? templates[0];
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SELECTED_TEMPLATE_STORAGE_KEY);
+      if (saved && templates.some((t) => t.file_name === saved)) {
+        setSelectedFileName(saved);
+      }
+    } catch {}
+  }, [templates]);
+
+  const selectTemplate = (fileName: string) => {
+    setSelectedFileName(fileName);
+    try {
+      localStorage.setItem(SELECTED_TEMPLATE_STORAGE_KEY, fileName);
+    } catch {}
+  };
 
   const templateLayoutStorageKey = `dim-sum-template-layout:${selectedTemplate?.file_name ?? ""}`;
   const templateValuesStorageKey = `dim-sum-template-values:${selectedTemplate?.file_name ?? ""}`;
@@ -529,7 +546,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
         <select
           id="template-select"
           value={selectedFileName}
-          onChange={(e) => setSelectedFileName(e.target.value)}
+          onChange={(e) => selectTemplate(e.target.value)}
           className="w-full max-w-md rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors hover:border-primary focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         >
           {templates.map((t) => (
