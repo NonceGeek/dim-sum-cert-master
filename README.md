@@ -1,50 +1,69 @@
-# Scaffold Agent Homepage
+# DimSum Cert Master
 
-> [https://scaffold-agent-homepage.leeduckgo.com/](https://scaffold-agent-homepage.leeduckgo.com/)
+> [https://cert.app.aidimsum.com/](https://cert.app.aidimsum.com/)
 >
 >
-> A configurable scaffold for building AI Agent homepages with a built-in chat interface.
+> A lightweight tool for generating certificates from image templates, with verifiable certificate IDs and QR codes.
+>
+> 基于模板快速生成证书，并为每张证书生成可验证的唯一码与二维码。
 
 ## 🎯 Overview
 
-This project provides a ready-to-use template for deploying your own **AI Agent Homepage**. It includes an agent profile page, a free-tier chatbot powered by [Deep Chat](https://github.com/OvidijusParsiunas/deep-chat), a premium-tier section, and a Deno backend server.
+DimSum Cert Master lets you pick a certificate template, fill in its fields (name, dataset name, date, QR code), adjust the layout, and download the result as a self-contained HTML file. It can also register each certificate with the backend to get a unique certificate ID and a verification link, which you can turn into a QR code.
 
 ### Key Features
 
-- ⚙️ **README-driven Configuration** — All app parameters live in a single Markdown file
-- 🤖 **AI Agent Profile** — Display agent information, avatar, and description
-- 🆓 **Free Tier** — Built-in chatbot access for all users
-- 💰 **Premium Tier** — Paid / advanced content section
-- 🎨 **Modern UI** — Built with Next.js, Tailwind CSS, and shadcn/ui
+- 🖼️ **Template-based Certificates** — Templates are images in `main/public/templates/` with configurable text and QR code fields
+- ✏️ **Live Editing** — Edit field values, positions, and font sizes with a live preview
+- 💾 **Session Memory** — Layout settings, QR color/size, and the cert password are kept in `sessionStorage`
+- 📥 **HTML Download** — Exports `{owner}_{dataset_name}_{cert_name}.html` with the template image embedded
+- 🔐 **Certificate IDs** — Password-protected endpoint stores certificates in Supabase and returns a unique ID
+- 📱 **Verification QR Code** — Generates a QR code for the verification link, with custom color, downloadable as `{owner}_certqrcode.png`
 
 ## ⚙️ Configuration
 
-All runtime parameters for the frontend app are defined in the **Configuration** section of [`main/README.md`](./main/README.md#configuration).
+### Frontend
 
-> **To customise your Agent Homepage, simply edit the values in `main/README.md` — the app reads them automatically at build / runtime. No code changes required.**
+Site-level text (homepage name, description, footer links) is defined in the **Configuration** section of [`main/README.md`](./main/README.md#configuration).
+
+> **Edit the values in `main/README.md` — the app reads them automatically at build / runtime.**
 >
-> 如需自定义你的 Agent 主页，只需编辑 `main/README.md` 中 Configuration 部分的 value 值，程序会自动读取，无需修改任何代码。
+> 只需编辑 `main/README.md` 中 Configuration 部分的 value 值，程序会自动读取。
 
-See [main/README.md → Configuration](./main/README.md#configuration) for the full parameter list.
+Certificate templates and their fields are defined in the `TEMPLATES` array in [`main/app/page.tsx`](./main/app/page.tsx). Each field has a `var_name`, `default_value`, `type` (`text` or `qr_code`), `font_size`, and `position`. The `cert_date` field defaults to today's date in UTC+8.
+
+The backend URL is currently hardcoded as `https://api.cert.app.aidimsum.com` in [`main/components/template-selector.tsx`](./main/components/template-selector.tsx).
+
+### Backend
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service-role key (bypasses RLS) |
+| `PASSWD` | Yes | Password required by `POST /api/new_cert` |
+| `PORT` / `SERVER_PORT` | No | Local listen port, defaults to `8000` |
+
+Certificates are stored in the Supabase table `agent_lib_cert_master` (columns `owner`, `cert_name`).
 
 ## 📁 Project Structure
 
 ```
-scaffold-agent-homepage/
-├── main/                  # Next.js frontend application
-│   ├── app/              # Next.js app router pages
-│   ├── components/       # React components
-│   ├── lib/              # Utilities (README config loader, etc.)
-│   ├── hooks/            # Custom React hooks
-│   ├── public/           # Static assets (avatar, icons)
-│   └── README.md         # ⭐ Frontend configuration file
+dim-sum-cert-master/
+├── main/                          # Next.js frontend application
+│   ├── app/
+│   │   └── page.tsx               # Homepage + certificate TEMPLATES config
+│   ├── components/
+│   │   └── template-selector.tsx  # Certificate editor, download, cert ID + QR code
+│   ├── lib/                       # Utilities (README config loader, etc.)
+│   ├── public/templates/          # Certificate template images
+│   └── README.md                  # ⭐ Frontend configuration file
 │
-├── deno-server/          # Deno backend server
-│   ├── main.tsx          # Server entry point
-│   ├── apidoc.md         # API documentation
-│   └── README.md         # Server documentation
+├── deno/                          # Deno backend server
+│   ├── main.tsx                   # Server entry point
+│   ├── deno.json                  # Tasks, imports, Deno Deploy config
+│   └── apidoc.md                  # Served at /docs and /docs/html
 │
-└── LICENSE               # Apache 2.0 License
+└── LICENSE                        # Apache 2.0 License
 ```
 
 ## 🚀 Quick Start
@@ -57,17 +76,17 @@ scaffold-agent-homepage/
 ### 1. Start the Backend Server
 
 ```bash
-cd deno-server
+cd deno
 
 # Set environment variables
-export DASHSCOPE_API_KEY="sk-your-key"
-export PORT=4003  # Optional, defaults to 4003
+export SUPABASE_URL="https://your-project.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+export PASSWD="your-password"
+export PORT=8000  # Optional, defaults to 8000
 
-# Run the server
-deno run --allow-net --allow-read --allow-env main.tsx
+# Run the server (watch mode)
+deno task dev
 ```
-
-See [deno-server/README.md](./deno-server/README.md) for detailed server documentation.
 
 ### 2. Start the Frontend
 
@@ -83,19 +102,57 @@ npm run dev
 
 The frontend will start on [http://localhost:3000](http://localhost:3000).
 
+## 🔌 API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Server greeting |
+| GET | `/health` | Health check JSON |
+| GET | `/docs` | Raw markdown API docs (`apidoc.md`) |
+| GET | `/docs/html` | Rendered HTML docs |
+| POST | `/api/new_cert` | Create a certificate record |
+
+`POST /api/new_cert` request body:
+
+```json
+{
+  "passwd": "your-password",
+  "owner": "cool guy",
+  "cert_name": "语料贡献者证书"
+}
+```
+
+Success response:
+
+```json
+{
+  "success": true,
+  "data": { "id": 1, "owner": "cool guy", "cert_name": "语料贡献者证书" }
+}
+```
+
+Errors: `401` for a wrong password, `400` if `owner` or `cert_name` is missing, `500` if Supabase is not configured.
+
+```bash
+curl -X POST http://localhost:8000/api/new_cert \
+  -H "Content-Type: application/json" \
+  -d '{"passwd":"your-password","owner":"cool guy","cert_name":"语料贡献者证书"}'
+```
+
 ## 🏗️ Architecture
 
 ### Frontend (`main/`)
 
 - **Framework**: Next.js 15 with App Router
 - **UI**: Tailwind CSS + shadcn/ui components
-- **Chat**: Deep Chat (web component)
+- **QR Codes**: `qrcode`
 - **Config**: Parsed at runtime from `main/README.md`
 
-### Backend (`deno-server/`)
+### Backend (`deno/`)
 
 - **Runtime**: Deno
 - **Framework**: Oak
+- **Database**: Supabase
 - **CORS**: oakCors with full cross-origin support
 
 ## 🚀 Deployment
@@ -103,21 +160,25 @@ The frontend will start on [http://localhost:3000](http://localhost:3000).
 ### Frontend (Vercel)
 
 1. Push code to GitHub
-2. Import project in Vercel
+2. Import project in Vercel, with `main/` as the root directory
 3. Deploy automatically
+
+Live at [https://cert.app.aidimsum.com/](https://cert.app.aidimsum.com/).
 
 ### Backend (Deno Deploy)
 
 1. Push code to GitHub
-2. Create project on [Deno Deploy](https://dash.deno.com)
-3. Set environment variables
-4. Deploy from `deno-server/main.tsx`
+2. Create project on [Deno Deploy](https://dash.deno.com) (configured in `deno/deno.json` as app `dim-sum-cert-master`)
+3. Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `PASSWD`
+4. Deploy from `deno/main.tsx`
+
+On Deno Deploy, `main.tsx` serves requests through `Deno.serve`; locally it uses `app.listen`.
 
 ## 📚 Documentation
 
 - **Frontend Config**: [main/README.md](./main/README.md#configuration)
-- **API Documentation**: [deno-server/apidoc.md](./deno-server/apidoc.md)
-- **Server README**: [deno-server/README.md](./deno-server/README.md)
+- **Certificate Templates**: [main/app/page.tsx](./main/app/page.tsx)
+- **Server Entry**: [deno/main.tsx](./deno/main.tsx)
 
 ## 🤝 Contributing
 
@@ -133,4 +194,4 @@ Created by [leeduckgo@NonceGeek](https://x.com/0xleeduckgo)
 
 ---
 
-**Built with ❤️ using Next.js, Deno, and Deep Chat**
+**Built with ❤️ using Next.js, Deno, and Supabase**

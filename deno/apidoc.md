@@ -1,11 +1,17 @@
-# Scaffold Agent Homepage — API Documentation
+# DimSum Cert Master — API Documentation
 
-> Deno backend server providing chat, TF-IDF search, and RAG endpoints.
+> Deno backend server for creating and verifying certificates, backed by Supabase.
 
 ## Base URL
 
 ```
-http://localhost:4403
+https://api.cert.app.aidimsum.com
+```
+
+Local development:
+
+```
+http://localhost:8000
 ```
 
 ---
@@ -18,8 +24,7 @@ Server greeting.
 
 **Response:**
 ```
-Hello from Movement x402 Server!
-Pay-to address: <MOVEMENT_PAY_TO>
+Hello from DimSum Cert Master Server
 ```
 
 ---
@@ -32,7 +37,7 @@ Health check endpoint for monitoring and load balancers.
 ```json
 {
   "status": "healthy",
-  "timestamp": "2025-01-04T12:00:00.000Z"
+  "timestamp": "2026-10-07T04:00:00.000Z"
 }
 ```
 
@@ -42,7 +47,7 @@ Health check endpoint for monitoring and load balancers.
 
 Get API documentation in Markdown format.
 
-**Response:** Raw Markdown content of this documentation.
+**Response:** Raw Markdown content of this documentation (`text/markdown`).
 
 ---
 
@@ -54,166 +59,134 @@ Get API documentation rendered as HTML with GitHub Flavored Markdown styling.
 
 ---
 
-## Chat Endpoints
+## Certificate Endpoints
 
-### `POST /api/chat`
+Certificates are stored in the Supabase table `agent_lib_cert_master`.
 
-Chat with the AI agent (powered by Alibaba DashScope / Qwen).
+### `POST /api/new_cert`
+
+Create a new certificate record. Requires the server password.
 
 **Request Body:**
 ```json
 {
-  "messages": [
-    { "role": "system", "content": "You are a helpful assistant." },
-    { "role": "user", "content": "Hello, what can you do?" }
-  ]
+  "passwd": "your-password",
+  "owner": "cool guy",
+  "cert_name": "语料贡献者证书"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `messages` | array | Yes | Array of chat messages in OpenAI-compatible format. Each message has `role` (`system`, `user`, or `assistant`) and `content`. |
+| `passwd` | string | Yes | Must match the `PASSWD` environment variable |
+| `owner` | string | Yes | Certificate owner (trimmed before saving) |
+| `cert_name` | string | Yes | Certificate name (trimmed before saving) |
 
-**Success Response (200):**
+**Success Response (200):** returns the inserted row. Its `id` is the certificate ID used by `/api/verify_cert`.
 ```json
 {
-  "text": "I can help you with..."
+  "success": true,
+  "data": {
+    "id": "573ebfbd-e0ea-4728-96f0-00c860c25a6d",
+    "owner": "cool guy",
+    "cert_name": "语料贡献者证书"
+  }
 }
 ```
 
 **Error Responses:**
 
-- `400` — Missing or invalid `messages` array
+- `401` — Missing or wrong password
 ```json
-{ "error": "messages array is required" }
+{ "error": "Unauthorized: invalid passwd" }
 ```
 
-- `500` — API key not configured or internal error
+- `400` — Missing `owner` or `cert_name`
 ```json
-{ "error": "DASHSCOPE_API_KEY not configured" }
+{ "error": "'owner' and 'cert_name' are required" }
+```
+
+- `500` — Supabase not configured, or the insert failed
+```json
+{ "error": "Supabase not configured" }
 ```
 
 **Example:**
 ```bash
-curl -X POST http://localhost:4403/api/chat \
+curl -X POST http://localhost:8000/api/new_cert \
   -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Hello, what can you do?"}]}'
+  -d '{"passwd":"your-password","owner":"cool guy","cert_name":"语料贡献者证书"}'
 ```
 
 ---
 
-## Search Endpoints
+### `GET /api/verify_cert`
 
-### `GET /api/search`
+Verify a certificate by its ID. The certificate is looked up by the `id` column first, then by a `cert_id` column. No password is required, so this URL can be shared as a QR code.
 
-TF-IDF full-text search over a knowledge library. The server auto-discovers all `data_*` folders at startup; each folder is registered as a library (e.g. `data_tfidf/` → `lib=tfidf`).
+By default the response is an HTML page for people opening the link in a browser. Add `resp_json=true` to get JSON instead.
 
 **Query Parameters:**
 
 | Param | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `q` | string | Yes | — | Search query |
-| `lib` | string | Yes | — | Library name (maps to `data_<lib>/chunks.jsonl`) |
-| `topk` | number | No | `5` | Number of top results to return (1–50) |
+| `cert_id` | string | Yes | — | Certificate ID (UUID returned by `/api/new_cert`) |
+| `resp_json` | string | No | — | Set to `true` to return JSON instead of HTML |
 
-**Success Response (200):**
+#### HTML response (default)
+
+**Found (200):** an HTML page rendered from this markdown, with one line per column of the certificate row:
+```markdown
+## 验证成功！
+该证书具体信息：
+* id: 573ebfbd-e0ea-4728-96f0-00c860c25a6d
+* owner: cool guy
+* cert_name: 语料贡献者证书
+```
+
+**Not found (200):** an HTML page with:
+```markdown
+## 验证失败！未查询到该证书
+```
+
+#### JSON response (`resp_json=true`)
+
+**Found (200):**
 ```json
 {
-  "query": "藏传佛教如何看待死亡",
-  "lib": "tfidf",
-  "topk": 5,
-  "total_chunks": 137,
-  "results": [
-    {
-      "rank": 1,
-      "score": 0.4321,
-      "chunk": {
-        "book_title": "八万四千问",
-        "author": "宗萨蒋扬钦哲仁波切",
-        "spine_index": 10,
-        "href": "text/part0009.html",
-        "chapter_title": "第三章 死亡与转世",
-        "chunk_index": 2,
-        "char_start": 0,
-        "char_end": 900,
-        "text": "..."
-      }
-    }
-  ]
+  "success": true,
+  "data": {
+    "id": "573ebfbd-e0ea-4728-96f0-00c860c25a6d",
+    "owner": "cool guy",
+    "cert_name": "语料贡献者证书"
+  }
 }
 ```
 
-**Error Responses:**
-
-- `400` — Missing `lib` or `q`
+**Not found (200):**
 ```json
-{ "error": "query parameter 'lib' is required", "available": ["tfidf"] }
+{ "success": false, "error": "cert is not exist" }
 ```
 
-- `404` — Library not found
+#### Errors (JSON in both modes)
+
+- `400` — Missing `cert_id`
 ```json
-{ "error": "lib \"foo\" not found", "available": ["tfidf"] }
+{ "success": false, "error": "'cert_id' is required" }
 ```
 
-**Example:**
+- `500` — Supabase not configured, or an unexpected error
+```json
+{ "error": "Supabase not configured" }
+```
+
+**Examples:**
 ```bash
-curl "http://localhost:4403/api/search?lib=tfidf&q=藏传佛教如何看待死亡&topk=5"
-```
+# HTML page
+curl "http://localhost:8000/api/verify_cert?cert_id=573ebfbd-e0ea-4728-96f0-00c860c25a6d"
 
----
-
-### `POST /api/search_and_chat`
-
-RAG (Retrieval-Augmented Generation) endpoint. Searches the TF-IDF index for relevant chunks, builds a context-aware prompt, and sends it to the LLM. Returns the AI answer together with the source chunks used.
-
-**Request Body:**
-```json
-{
-  "q": "藏传佛教如何看待死亡",
-  "lib": "tfidf",
-  "topk": 5,
-  "messages": []
-}
-```
-
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `q` | string | Yes | — | User question |
-| `lib` | string | Yes | — | Library name |
-| `topk` | number | No | `5` | Number of chunks to retrieve (1–50) |
-| `messages` | array | No | `[]` | Prior conversation messages for multi-turn context. Each has `role` and `content`. |
-
-**Success Response (200):**
-```json
-{
-  "text": "根据资料，藏传佛教认为死亡是……\n\n引用来源：第三章 死亡与转世 chunk#2",
-  "sources": [
-    {
-      "rank": 1,
-      "score": 0.4321,
-      "chunk": {
-        "book_title": "八万四千问",
-        "author": "宗萨蒋扬钦哲仁波切",
-        "chapter_title": "第三章 死亡与转世",
-        "chunk_index": 2,
-        "text": "..."
-      }
-    }
-  ]
-}
-```
-
-**Error Responses:**
-
-- `400` — Missing `lib` or `q`
-- `404` — Library not found
-- `500` — API key not configured or internal error
-
-**Example:**
-```bash
-curl -X POST http://localhost:4403/api/search_and_chat \
-  -H "Content-Type: application/json" \
-  -d '{"q": "藏传佛教如何看待死亡", "lib": "tfidf", "topk": 5}'
+# JSON
+curl "http://localhost:8000/api/verify_cert?cert_id=573ebfbd-e0ea-4728-96f0-00c860c25a6d&resp_json=true"
 ```
 
 ---
@@ -222,9 +195,11 @@ curl -X POST http://localhost:4403/api/search_and_chat \
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DASHSCOPE_API_KEY` | Yes | — | Alibaba DashScope API key for chat/RAG endpoints |
-| `SERVER_PORT` | No | `4403` | Server listen port |
+| `SUPABASE_URL` | Yes | — | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | — | Supabase service-role key (bypasses RLS) |
+| `PASSWD` | Yes | — | Password required by `POST /api/new_cert` |
+| `PORT` / `SERVER_PORT` | No | `8000` | Local listen port (ignored on Deno Deploy) |
 
 ---
 
-**Built with Deno and Oak**
+**Built with Deno, Oak, and Supabase**

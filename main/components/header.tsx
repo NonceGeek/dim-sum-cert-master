@@ -33,8 +33,11 @@ export function Header({ homepageName }: HeaderProps) {
           <Link href="/" className="text-foreground hover:text-primary transition-colors">
             Home
           </Link>
+          <Link href="/verify-cert" className="text-foreground hover:text-primary transition-colors">
+            Verify Cert
+          </Link>
           <a 
-            href="https://backend.ai-market.leeduckgo.com/v2/docs/html" 
+            href="https://api.cert.app.aidimsum.com/docs/html" 
             target="_blank" 
             rel="noopener noreferrer"
             className="text-foreground hover:text-primary transition-colors"
@@ -64,8 +67,15 @@ export function Header({ homepageName }: HeaderProps) {
             >
               Home
             </Link>
+            <Link
+              href="/verify-cert"
+              className="block text-foreground hover:text-primary transition-colors py-2"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Verify Cert
+            </Link>
             <a
-              href="https://docs.movementnetwork.xyz/devs"
+              href="https://api.cert.app.aidimsum.com/docs/html"
               target="_blank"
               rel="noopener noreferrer"
               className="block text-foreground hover:text-primary transition-colors py-2"

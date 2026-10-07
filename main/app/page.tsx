@@ -63,6 +63,40 @@ const TEMPLATES = [
       },
     ],
   },
+  {
+    name: "算法大赛获奖者证书",
+    file_name: "aidimsum_dataset_contributor.png",
+    vars: [
+      {
+        var_name: "name",
+        default_value: "cool guy",
+        type: "text",
+        font_size: 48,
+        position: { x: 200, y: 190 },
+      },
+      {
+        var_name: "dataset_name",
+        default_value: "「广府童谣」语料集，",
+        type: "text",
+        font_size: 12,
+        position: { x: 377, y: 264 },
+      },
+      {
+        var_name: "cert_date",
+        default_value: getTodayInUTC8(),
+        type: "text",
+        font_size: 12,
+        position: { x: 350, y: 375 },
+      },
+      {
+        var_name: "qr_code",
+        default_value: "",
+        type: "qr_code",
+        font_size: 80,
+        position: { x: 150, y: 320 },
+      },
+    ],
+  },
 ];
 
 export default function Home() {

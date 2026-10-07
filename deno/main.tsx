@@ -135,7 +135,116 @@ router
       context.response.status = 500;
       context.response.body = { error: String(err) };
     }
-  });
+  })
+  .get("/api/verify_cert", async (context: any) => {
+    // Verify a certificate record in agent_lib_cert_master.
+    // Query: ?cert_id=<uuid>[&resp_json=true]
+    // Return: HTML page with the certificate details, or JSON when resp_json=true.
+    const cert_id = context.request.url.searchParams.get("cert_id")?.trim() ?? "";
+    const respJson =
+      context.request.url.searchParams.get("resp_json")?.trim().toLowerCase() ===
+      "true";
+
+    if (!cert_id) {
+      context.response.status = 400;
+      context.response.body = { success: false, error: "'cert_id' is required" };
+      return;
+    }
+
+    if (!supabase) {
+      context.response.status = 500;
+      context.response.body = { error: "Supabase not configured" };
+      return;
+    }
+
+    const renderHtmlPage = (markdown: string) => {
+      // Render markdown to HTML with GFM styles
+      const body = render(markdown);
+
+      return `<!DOCTYPE html>
+    <html lang="zh">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>DimSum Cert Master 证书验证</title>
+      <style>
+        ${CSS}
+        body {
+          max-width: 900px;
+          margin: 0 auto;
+          padding: 20px;
+        }
+      </style>
+    </head>
+    <body>
+    ${body}
+    </body>
+    </html>`;
+    };
+
+    try {
+      const byId = await supabase
+        .from("agent_lib_cert_master")
+        .select("*")
+        .eq("id", cert_id)
+        .maybeSingle();
+
+      let data = byId.data;
+
+      // Fallback to cert_id column when id lookup misses (ignore lookup errors here)
+      if (!data) {
+        const byCertId = await supabase
+          .from("agent_lib_cert_master")
+          .select("*")
+          .eq("cert_id", cert_id)
+          .maybeSingle();
+        if (byCertId.data) data = byCertId.data;
+      }
+
+      if (!data) {
+        if (respJson) {
+          context.response.body = {
+            success: false,
+            error: "cert is not exist",
+          };
+          return;
+        }
+        context.response.headers.set("Content-Type", "text/html; charset=utf-8");
+        context.response.body = renderHtmlPage("## 验证失败！未查询到该证书\n");
+        return;
+      }
+
+      if (respJson) {
+        context.response.body = { success: true, data };
+        return;
+      }
+
+      const lines = Object.entries(data as Record<string, unknown>).map(
+        ([key, value]) => {
+          const text =
+            value !== null && typeof value === "object"
+              ? JSON.stringify(value)
+              : String(value ?? "");
+          return `* ${key}: ${text}`;
+        },
+      );
+      const markdown = `## 验证成功！\n该证书具体信息：\n${lines.join("\n")}\n`;
+
+      context.response.headers.set("Content-Type", "text/html; charset=utf-8");
+      context.response.body = renderHtmlPage(markdown);
+    } catch (err) {
+      console.error("verify_cert error:", err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+            ? String((err as { message: unknown }).message)
+            : JSON.stringify(err);
+      context.response.status = 500;
+      context.response.body = { error: message };
+    }
+  })
+  ;
 
 // ---------------------------------------------------------------------------
 // Application
