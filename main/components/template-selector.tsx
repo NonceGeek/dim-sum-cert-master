@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import QRCode from "qrcode";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
+
+const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 
 type TemplateSelectorProps = {
   templates: {
@@ -15,6 +18,10 @@ type TemplateSelectorProps = {
       type: string;
       font_size?: number;
       position: { x: number; y: number };
+      // "center": position is the center of the text; default is its top-left corner.
+      anchor?: "top-left" | "center";
+      // Text color as #rrggbb; defaults to white.
+      color?: string;
     }[];
   }[];
 };
@@ -40,6 +47,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
     Record<string, { x: number; y: number }>
   >({});
   const [varFontSizes, setVarFontSizes] = useState<Record<string, number>>({});
+  const [varColors, setVarColors] = useState<Record<string, string>>({});
   const [qrCodeDataUri, setQrCodeDataUri] = useState<string>("");
   const [qrCodeSize, setQrCodeSize] = useState(80);
 
@@ -54,14 +62,10 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
   const selectedTemplate =
     templates.find((t) => t.file_name === selectedFileName) ?? templates[0];
 
-  const templateLayoutStorageKey = useMemo(
-    () => `dim-sum-template-layout:${selectedTemplate?.file_name ?? ""}`,
-    [selectedTemplate?.file_name],
-  );
-  const layoutHydratedRef = useRef<{ key: string; hydrated: boolean } | null>(
-    null,
-  );
+  const templateLayoutStorageKey = `dim-sum-template-layout:${selectedTemplate?.file_name ?? ""}`;
   const templateValuesStorageKey = `dim-sum-template-values:${selectedTemplate?.file_name ?? ""}`;
+  const defaultQrCodeSize =
+    selectedTemplate?.vars.find((v) => v.type === "qr_code")?.font_size ?? 80;
 
   const defaultVarValues = useMemo(() => {
     const entries = (selectedTemplate?.vars ?? []).map((v) => [
@@ -87,6 +91,15 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
         : 24,
     ]);
     return Object.fromEntries(entries) as Record<string, number>;
+  }, [selectedTemplate]);
+
+  // Lowercased so it compares equal to what <input type="color"> reports.
+  const defaultVarColors = useMemo(() => {
+    const entries = (selectedTemplate?.vars ?? []).map((v) => [
+      v.var_name,
+      HEX_COLOR_RE.test(v.color ?? "") ? v.color!.toLowerCase() : "#ffffff",
+    ]);
+    return Object.fromEntries(entries) as Record<string, string>;
   }, [selectedTemplate]);
 
   useEffect(() => {
@@ -121,69 +134,175 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
   };
 
   useEffect(() => {
-    const key = templateLayoutStorageKey;
-    layoutHydratedRef.current = { key, hydrated: false };
-
-    let next = defaultVarPositions;
+    let positions = defaultVarPositions;
+    let fontSizes = defaultVarFontSizes;
+    let colors = defaultVarColors;
+    let qrSize = defaultQrCodeSize;
     try {
-      const saved = sessionStorage.getItem(key);
+      const saved = localStorage.getItem(templateLayoutStorageKey);
       if (saved) {
         const parsed = JSON.parse(saved) as {
-          positions?: Record<string, { x: number; y: number }>;
-          fontSizes?: Record<string, number>;
+          positions?: Record<string, unknown>;
+          fontSizes?: Record<string, unknown>;
+          colors?: Record<string, unknown>;
+          qrSize?: unknown;
         };
-        if (parsed.positions && typeof parsed.positions === "object") {
-          next = { ...defaultVarPositions, ...parsed.positions };
+        const isPosition = (p: unknown): p is { x: number; y: number } => {
+          const r = p as Record<string, unknown> | null;
+          return (
+            !!r &&
+            typeof r.x === "number" &&
+            typeof r.y === "number" &&
+            Number.isFinite(r.x) &&
+            Number.isFinite(r.y)
+          );
+        };
+        const savedPositions = Object.fromEntries(
+          Object.entries(parsed.positions ?? {}).filter(
+            ([key, p]) => key in defaultVarPositions && isPosition(p),
+          ),
+        ) as Record<string, { x: number; y: number }>;
+        const savedFontSizes = Object.fromEntries(
+          Object.entries(parsed.fontSizes ?? {}).filter(
+            ([key, s]) =>
+              key in defaultVarFontSizes && typeof s === "number" && Number.isFinite(s),
+          ),
+        ) as Record<string, number>;
+        const savedColors = Object.fromEntries(
+          Object.entries(parsed.colors ?? {}).filter(
+            ([key, c]) =>
+              key in defaultVarColors && typeof c === "string" && HEX_COLOR_RE.test(c),
+          ),
+        ) as Record<string, string>;
+        positions = { ...defaultVarPositions, ...savedPositions };
+        fontSizes = { ...defaultVarFontSizes, ...savedFontSizes };
+        colors = { ...defaultVarColors, ...savedColors };
+        if (
+          typeof parsed.qrSize === "number" &&
+          Number.isFinite(parsed.qrSize) &&
+          parsed.qrSize > 0
+        ) {
+          qrSize = parsed.qrSize;
         }
       }
     } catch {}
 
+    setVarPositions(positions);
+    setVarFontSizes(fontSizes);
+    setVarColors(colors);
+    setQrCodeSize(qrSize);
+  }, [
+    defaultVarPositions,
+    defaultVarFontSizes,
+    defaultVarColors,
+    defaultQrCodeSize,
+    templateLayoutStorageKey,
+  ]);
+
+  const saveLayout = (
+    changes: {
+      positions?: Record<string, { x: number; y: number }>;
+      fontSizes?: Record<string, number>;
+      colors?: Record<string, string>;
+      qrSize?: number;
+    },
+  ) => {
+    const positions = changes.positions ?? varPositions;
+    const fontSizes = changes.fontSizes ?? varFontSizes;
+    const colors = changes.colors ?? varColors;
+    const qrSize = changes.qrSize ?? qrCodeSize;
+    // Like the text values, only edited fields are saved, so a changed default in the template still applies.
+    const editedPositions = Object.fromEntries(
+      Object.entries(positions).filter(([key, p]) => {
+        const d = defaultVarPositions[key];
+        return !d || d.x !== p.x || d.y !== p.y;
+      }),
+    );
+    const editedFontSizes = Object.fromEntries(
+      Object.entries(fontSizes).filter(([key, s]) => s !== defaultVarFontSizes[key]),
+    );
+    const editedColors = Object.fromEntries(
+      Object.entries(colors).filter(([key, c]) => c !== defaultVarColors[key]),
+    );
+    try {
+      localStorage.setItem(
+        templateLayoutStorageKey,
+        JSON.stringify({
+          positions: editedPositions,
+          fontSizes: editedFontSizes,
+          colors: editedColors,
+          ...(qrSize !== defaultQrCodeSize ? { qrSize } : {}),
+        }),
+      );
+    } catch {}
+  };
+
+  const updateVarPosition = (varName: string, position: { x: number; y: number }) => {
+    const next = { ...varPositions, [varName]: position };
     setVarPositions(next);
-    if (layoutHydratedRef.current?.key === key) {
-      layoutHydratedRef.current.hydrated = true;
-    }
-  }, [defaultVarPositions, templateLayoutStorageKey]);
+    saveLayout({ positions: next });
+  };
 
-  useEffect(() => {
-    let next = defaultVarFontSizes;
-    try {
-      const saved = sessionStorage.getItem(templateLayoutStorageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as {
-          positions?: Record<string, { x: number; y: number }>;
-          fontSizes?: Record<string, number>;
-        };
-        if (parsed.fontSizes && typeof parsed.fontSizes === "object") {
-          next = { ...defaultVarFontSizes, ...parsed.fontSizes };
-        }
-      }
-    } catch {}
-
+  const updateVarFontSize = (varName: string, size: number) => {
+    const next = { ...varFontSizes, [varName]: size };
     setVarFontSizes(next);
-  }, [defaultVarFontSizes, templateLayoutStorageKey]);
+    saveLayout({ fontSizes: next });
+  };
 
-  useEffect(() => {
-    const key = templateLayoutStorageKey;
-    if (!key) return;
-    if (layoutHydratedRef.current?.key !== key) return;
-    if (!layoutHydratedRef.current?.hydrated) return;
+  const updateVarColor = (varName: string, color: string) => {
+    const next = { ...varColors, [varName]: color.toLowerCase() };
+    setVarColors(next);
+    saveLayout({ colors: next });
+  };
 
+  const updateQrCodeSize = (size: number) => {
+    setQrCodeSize(size);
+    saveLayout({ qrSize: size });
+  };
+
+  const resetTemplate = () => {
+    if (!window.confirm(`确定将「${selectedTemplate.name}」的所有内容和位置恢复为默认值吗？`)) {
+      return;
+    }
     try {
-      const payload = JSON.stringify({
-        positions: varPositions,
-        fontSizes: varFontSizes,
-      });
-      sessionStorage.setItem(key, payload);
+      localStorage.removeItem(templateValuesStorageKey);
+      localStorage.removeItem(templateLayoutStorageKey);
     } catch {}
-  }, [templateLayoutStorageKey, varPositions, varFontSizes]);
+    setVarValues(defaultVarValues);
+    setVarPositions(defaultVarPositions);
+    setVarFontSizes(defaultVarFontSizes);
+    setVarColors(defaultVarColors);
+    setQrCodeSize(defaultQrCodeSize);
+    setQrCodeDataUri("");
+  };
+
+  // Same shape as a TEMPLATES entry in app/page.tsx, so it can be pasted back as the new defaults.
+  const copyConfig = async () => {
+    const config = {
+      name: selectedTemplate.name,
+      file_name: selectedTemplate.file_name,
+      vars: selectedTemplate.vars.map((v) => {
+        const isQr = v.type === "qr_code";
+        return {
+          ...v,
+          default_value: isQr ? v.default_value : (varValues[v.var_name] ?? v.default_value),
+          font_size: isQr ? qrCodeSize : (varFontSizes[v.var_name] ?? v.font_size),
+          position: varPositions[v.var_name] ?? v.position,
+          ...(isQr ? {} : { color: varColors[v.var_name] ?? "#ffffff" }),
+        };
+      }),
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(config, null, 2));
+      toast.success("配置已复制到剪贴板");
+    } catch {
+      toast.error("复制失败，请检查浏览器的剪贴板权限");
+    }
+  };
 
   const [certModalOpen, setCertModalOpen] = useState(false);
   const CERT_PASSWD_STORAGE_KEY = "dim-sum-cert-passwd";
   const QR_COLOR_STORAGE_KEY = "dim-sum-qr-color";
-  const qrSettingsStorageKey = useMemo(
-    () => `dim-sum-qr-settings:${selectedTemplate?.file_name ?? ""}`,
-    [selectedTemplate?.file_name],
-  );
   const [certPasswd, setCertPasswd] = useState("");
   const [certOwner, setCertOwner] = useState(() =>
     getTemplateDefaultOwner(templates[0]),
@@ -243,43 +362,6 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
     setCertOwner(getTemplateDefaultOwner(selectedTemplate));
     setCertName(selectedTemplate?.name ?? "");
   }, [selectedTemplate, getTemplateDefaultOwner]);
-
-  useEffect(() => {
-    if (!selectedTemplate?.file_name) return;
-
-    try {
-      const saved = sessionStorage.getItem(qrSettingsStorageKey);
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as {
-        size?: number;
-        position?: { x: number; y: number };
-      };
-
-      if (typeof parsed.size === "number" && Number.isFinite(parsed.size) && parsed.size > 0) {
-        setQrCodeSize(parsed.size);
-      }
-      if (
-        parsed.position &&
-        typeof parsed.position.x === "number" &&
-        typeof parsed.position.y === "number" &&
-        Number.isFinite(parsed.position.x) &&
-        Number.isFinite(parsed.position.y)
-      ) {
-        setVarPositions((prev) => ({ ...prev, qr_code: parsed.position! }));
-      }
-    } catch {}
-  }, [selectedTemplate?.file_name, qrSettingsStorageKey]);
-
-  useEffect(() => {
-    if (!selectedTemplate?.file_name) return;
-    try {
-      const payload = JSON.stringify({
-        size: qrCodeSize,
-        position: varPositions["qr_code"],
-      });
-      sessionStorage.setItem(qrSettingsStorageKey, payload);
-    } catch {}
-  }, [selectedTemplate?.file_name, qrSettingsStorageKey, qrCodeSize, varPositions]);
 
   const downloadQrPng = () => {
     const canvas = qrCanvasRef.current;
@@ -369,8 +451,13 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
         if (!text) return "";
         const pos = varPositions[v.var_name] ?? v.position;
         const fontSize = varFontSizes[v.var_name] ?? v.font_size ?? 24;
+        const color = varColors[v.var_name] ?? "#ffffff";
         const cssFontFamily = fontFamily.replace(/"/g, "'");
-        return `<div style="position:absolute;left:${pos.x}px;top:${pos.y}px;font-size:${fontSize}px;font-family:${cssFontFamily};color:#fff;white-space:pre-wrap;">${esc(text)}</div>`;
+        const anchorCss =
+          v.anchor === "center"
+            ? "transform:translate(-50%,-50%);white-space:pre;text-align:center;"
+            : "white-space:pre-wrap;";
+        return `<div style="position:absolute;left:${pos.x}px;top:${pos.y}px;font-size:${fontSize}px;font-family:${cssFontFamily};color:${color};${anchorCss}">${esc(text)}</div>`;
       })
       .filter(Boolean);
 
@@ -451,6 +538,20 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={resetTemplate}
+          className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+        >
+          重置
+        </button>
+        <button
+          type="button"
+          onClick={copyConfig}
+          className="inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm transition-colors hover:bg-muted"
+        >
+          复制配置
+        </button>
       </div>
 
       {selectedTemplate?.vars?.length ? (
@@ -497,10 +598,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                           onChange={(e) => {
                             const nextX = Number(e.target.value);
                             if (!Number.isFinite(nextX)) return;
-                            setVarPositions((prev) => ({
-                              ...prev,
-                              [v.var_name]: { x: nextX, y: pos.y },
-                            }));
+                            updateVarPosition(v.var_name, { x: nextX, y: pos.y });
                           }}
                         />
                       </div>
@@ -518,10 +616,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                           onChange={(e) => {
                             const nextY = Number(e.target.value);
                             if (!Number.isFinite(nextY)) return;
-                            setVarPositions((prev) => ({
-                              ...prev,
-                              [v.var_name]: { x: pos.x, y: nextY },
-                            }));
+                            updateVarPosition(v.var_name, { x: pos.x, y: nextY });
                           }}
                         />
                       </div>
@@ -539,21 +634,29 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                           onChange={(e) => {
                             const next = Number(e.target.value);
                             if (!Number.isFinite(next)) return;
-                            setVarFontSizes((prev) => ({
-                              ...prev,
-                              [v.var_name]: next,
-                            }));
+                            updateVarFontSize(v.var_name, next);
                           }}
                         />
                       </div>
                     </div>
 
-                    <Input
-                      id={`var-${v.var_name}`}
-                      value={value}
-                      onChange={(e) => updateVarValue(v.var_name, e.target.value)}
-                      placeholder={v.default_value}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id={`var-${v.var_name}`}
+                        value={value}
+                        onChange={(e) => updateVarValue(v.var_name, e.target.value)}
+                        placeholder={v.default_value}
+                      />
+                      <input
+                        id={`var-${v.var_name}-color`}
+                        type="color"
+                        aria-label={`${v.var_name} color`}
+                        title="字体颜色"
+                        value={varColors[v.var_name] ?? "#ffffff"}
+                        onChange={(e) => updateVarColor(v.var_name, e.target.value)}
+                        className="h-9 w-10 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-0.5"
+                      />
+                    </div>
                   </div>
                 );
               })}
@@ -606,10 +709,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                         onChange={(e) => {
                           const nextX = Number(e.target.value);
                           if (!Number.isFinite(nextX)) return;
-                          setVarPositions((prev) => ({
-                            ...prev,
-                            [v.var_name]: { x: nextX, y: pos.y },
-                          }));
+                          updateVarPosition(v.var_name, { x: nextX, y: pos.y });
                         }}
                       />
                     </div>
@@ -627,10 +727,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                         onChange={(e) => {
                           const nextY = Number(e.target.value);
                           if (!Number.isFinite(nextY)) return;
-                          setVarPositions((prev) => ({
-                            ...prev,
-                            [v.var_name]: { x: pos.x, y: nextY },
-                          }));
+                          updateVarPosition(v.var_name, { x: pos.x, y: nextY });
                         }}
                       />
                     </div>
@@ -648,7 +745,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                         onChange={(e) => {
                           const next = Number(e.target.value);
                           if (!Number.isFinite(next) || next <= 0) return;
-                          setQrCodeSize(next);
+                          updateQrCodeSize(next);
                         }}
                       />
                     </div>
@@ -863,14 +960,20 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                   if (!text) return null;
                   const pos = varPositions[v.var_name] ?? v.position;
                   const fontSize = varFontSizes[v.var_name] ?? v.font_size ?? 24;
+                  const centered = v.anchor === "center";
                   return (
                     <div
                       key={v.var_name}
-                      className="absolute whitespace-pre-wrap text-white"
+                      className={`absolute ${
+                        centered
+                          ? "-translate-x-1/2 -translate-y-1/2 whitespace-pre text-center"
+                          : "whitespace-pre-wrap"
+                      }`}
                       style={{
                         left: pos.x,
                         top: pos.y,
                         fontSize,
+                        color: varColors[v.var_name] ?? "#ffffff",
                         fontFamily:
                           '"HarmonyOS Sans", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
                         // textShadow:

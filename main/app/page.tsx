@@ -31,21 +31,24 @@ const markdownToHtml = (markdown: string) => {
 const TEMPLATES = [
   {
     name: "语料贡献者证书",
-    file_name: "aidimsum_dataset_contributor.png",
+    file_name: "aidimsum-dataset-contributor.png",
     vars: [
       {
         var_name: "name",
         default_value: "cool guy",
         type: "text",
         font_size: 48,
-        position: { x: 200, y: 190 },
+        position: { x: 300, y: 226 },
+        anchor: "center" as const,
+        color: "#FFFFFF",
       },
       {
         var_name: "dataset_name",
         default_value: "「广府童谣」语料集，",
         type: "text",
         font_size: 12,
-        position: { x: 377, y: 264 },
+        position: { x: 377, y: 264 }, 
+        color: "#FFFFFF",
       },
       {
         var_name: "cert_date",
@@ -53,6 +56,7 @@ const TEMPLATES = [
         type: "text",
         font_size: 12,
         position: { x: 350, y: 375 },
+        color: "#FFFFFF",
       },
       {
         var_name: "qr_code",
@@ -64,39 +68,95 @@ const TEMPLATES = [
     ],
   },
   {
-    name: "算法大赛获奖者证书",
-    file_name: "aidimsum_dataset_contributor.png",
-    vars: [
+    "name": "算法大赛初赛入围证书",
+    "file_name": "dim-sum-cup-1-round.png",
+    "vars": [
       {
-        var_name: "name",
-        default_value: "cool guy",
-        type: "text",
-        font_size: 48,
-        position: { x: 200, y: 190 },
+        "var_name": "name",
+        "default_value": "张三丰",
+        "type": "text",
+        "font_size": 48,
+        "position": {
+          "x": 335,
+          "y": 160
+        },
+        "anchor": "center",
+        "color": "#000000"
       },
       {
-        var_name: "dataset_name",
-        default_value: "「广府童谣」语料集，",
-        type: "text",
-        font_size: 12,
-        position: { x: 377, y: 264 },
+        "var_name": "dataset_name",
+        "default_value": "",
+        "type": "text",
+        "font_size": 12,
+        "position": {
+          "x": 377,
+          "y": 264
+        },
+        "color": "#000000"
       },
       {
-        var_name: "cert_date",
-        default_value: getTodayInUTC8(),
-        type: "text",
-        font_size: 12,
-        position: { x: 350, y: 375 },
+        "var_name": "cert_date",
+        "default_value": "2026-10-07",
+        "type": "text",
+        "font_size": 12,
+        "position": {
+          "x": 400,
+          "y": 380
+        },
+        "color": "#000000"
       },
       {
-        var_name: "qr_code",
-        default_value: "",
-        type: "qr_code",
-        font_size: 80,
-        position: { x: 150, y: 320 },
-      },
-    ],
-  },
+        "var_name": "qr_code",
+        "default_value": "",
+        "type": "qr_code",
+        "font_size": 80,
+        "position": {
+          "x": 150,
+          "y": 320
+        }
+      }
+    ]
+  }
+  // {
+  //   name: "算法大赛初赛入围证书",
+  //   file_name: "dim-sum-cup-1-round.png",
+  //   vars: 
+  //   vars: [
+  //     {
+  //       var_name: "name",
+  //       default_value: "cool guy",
+  //       type: "text",
+  //       font_size: 48,
+  //       position: { x: 300, y: 226 },
+  //       anchor: "center" as const,
+  //       color: "#000000",
+  //     },
+  //     {
+  //       var_name: "dataset_name",
+  //       default_value: "",
+  //       type: "text",
+  //       font_size: 12,
+  //       position: { x: 377, y: 264 },
+  //       color: "#000000",
+  //     },
+  //     {
+  //       var_name: "cert_date",
+  //       default_value: getTodayInUTC8(),
+  //       type: "text",
+  //       font_size: 12,
+  //       position: { x: 350, y: 375 },
+  //       color: "#000000",
+  //     },
+  //     {
+  //       var_name: "qr_code",
+  //       default_value: "",
+  //       type: "qr_code",
+  //       font_size: 80,
+  //       position: { x: 150, y: 320 },
+
+  //     },
+  //   ],
+  // },
 ];
 
 export default function Home() {
