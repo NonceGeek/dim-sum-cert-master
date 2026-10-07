@@ -61,6 +61,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
   const layoutHydratedRef = useRef<{ key: string; hydrated: boolean } | null>(
     null,
   );
+  const templateValuesStorageKey = `dim-sum-template-values:${selectedTemplate?.file_name ?? ""}`;
 
   const defaultVarValues = useMemo(() => {
     const entries = (selectedTemplate?.vars ?? []).map((v) => [
@@ -89,8 +90,35 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
   }, [selectedTemplate]);
 
   useEffect(() => {
-    setVarValues(defaultVarValues);
-  }, [defaultVarValues]);
+    let next = defaultVarValues;
+    try {
+      const saved = localStorage.getItem(templateValuesStorageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Record<string, unknown>;
+        if (parsed && typeof parsed === "object") {
+          const savedStrings = Object.fromEntries(
+            Object.entries(parsed).filter(
+              ([key, value]) => key in defaultVarValues && typeof value === "string",
+            ),
+          ) as Record<string, string>;
+          next = { ...defaultVarValues, ...savedStrings };
+        }
+      }
+    } catch {}
+    setVarValues(next);
+  }, [defaultVarValues, templateValuesStorageKey]);
+
+  const updateVarValue = (varName: string, value: string) => {
+    const next = { ...varValues, [varName]: value };
+    setVarValues(next);
+    // Only edited fields are saved, so untouched defaults (e.g. today's cert_date) stay live.
+    const edited = Object.fromEntries(
+      Object.entries(next).filter(([key, val]) => val !== defaultVarValues[key]),
+    );
+    try {
+      localStorage.setItem(templateValuesStorageKey, JSON.stringify(edited));
+    } catch {}
+  };
 
   useEffect(() => {
     const key = templateLayoutStorageKey;
@@ -186,16 +214,17 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
 
   useEffect(() => {
     try {
-      const saved = sessionStorage.getItem(CERT_PASSWD_STORAGE_KEY);
+      const saved = localStorage.getItem(CERT_PASSWD_STORAGE_KEY);
       if (typeof saved === "string") setCertPasswd(saved);
     } catch {}
   }, []);
 
-  useEffect(() => {
+  const updateCertPasswd = (value: string) => {
+    setCertPasswd(value);
     try {
-      sessionStorage.setItem(CERT_PASSWD_STORAGE_KEY, certPasswd);
+      localStorage.setItem(CERT_PASSWD_STORAGE_KEY, value);
     } catch {}
-  }, [certPasswd]);
+  };
 
   useEffect(() => {
     try {
@@ -522,12 +551,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                     <Input
                       id={`var-${v.var_name}`}
                       value={value}
-                      onChange={(e) =>
-                        setVarValues((prev) => ({
-                          ...prev,
-                          [v.var_name]: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => updateVarValue(v.var_name, e.target.value)}
                       placeholder={v.default_value}
                     />
                   </div>
@@ -687,7 +711,7 @@ export function TemplateSelector({ templates }: TemplateSelectorProps) {
                   <Input
                     type="password"
                     value={certPasswd}
-                    onChange={(e) => setCertPasswd(e.target.value)}
+                    onChange={(e) => updateCertPasswd(e.target.value)}
                     placeholder="请输入密码"
                   />
                 </div>
